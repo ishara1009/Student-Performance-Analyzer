@@ -1,0 +1,10 @@
+__pycache__/
+*.py[cod]
+.venv/
+.env
+data/students.json
+data/*.tmp
+reports/*
+!reports/.gitkeep
+.DS_Store
+Thumbs.db
