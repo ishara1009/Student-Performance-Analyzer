@@ -132,9 +132,16 @@ class CLI:
     def search(self) -> None:
         query = input("Exact ID or part of a name: ")
         matches = self.manager.search(query)
-        self._display(matches)
+
         if not matches:
+            # The application may contain students even when this particular
+            # search has no result.  Therefore, do not say that all data is
+            # unavailable here.
+            print("No matching student found.")
             print("Search uses exact ID or case-insensitive partial name.")
+            return
+
+        self._display(matches)
 
     def update(self) -> None:
         raw_id = input("Student ID to update: ")
