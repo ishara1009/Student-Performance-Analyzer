@@ -1,33 +1,39 @@
-"""Validated student domain model."""
-
-from dataclasses import dataclass
+"""The Student class used throughout the project."""
 
 from .validators import normalize_student_id, validate_marks, validate_name
 
 
-@dataclass
 class Student:
-    """Store one student's identity and fixed subject marks."""
+    """Store one student's ID, name, and subject marks."""
 
-    student_id: str
-    name: str
-    marks: dict[str, float]
-
-    def __post_init__(self) -> None:
-        self.student_id = normalize_student_id(self.student_id)
-        self.name = validate_name(self.name)
-        self.marks = validate_marks(self.marks)
+    def __init__(self, student_id: str, name: str, marks: dict[str, object]) -> None:
+        # Validate data before saving it inside the object.  This means every
+        # Student object in the program can be trusted to contain valid data.
+        self.student_id = normalize_student_id(student_id)
+        self.name = validate_name(name)
+        self.marks = validate_marks(marks)
 
     def to_dict(self) -> dict[str, object]:
         """Return a JSON-serializable dictionary."""
-        return {"student_id": self.student_id, "name": self.name, "marks": self.marks.copy()}
+        student_data = {
+            "student_id": self.student_id,
+            "name": self.name,
+            "marks": self.marks.copy(),
+        }
+        return student_data
 
     @classmethod
     def from_dict(cls, data: object) -> "Student":
         """Construct and validate a student from stored data."""
         if not isinstance(data, dict):
             raise ValueError("Student record must be an object.")
-        expected = {"student_id", "name", "marks"}
-        if set(data) != expected:
+        expected_keys = {"student_id", "name", "marks"}
+        actual_keys = set(data.keys())
+
+        if actual_keys != expected_keys:
             raise ValueError("Student record must contain only student_id, name, and marks.")
-        return cls(data["student_id"], data["name"], data["marks"])  # type: ignore[arg-type]
+
+        student_id = data["student_id"]
+        name = data["name"]
+        marks = data["marks"]
+        return cls(student_id, name, marks)  # type: ignore[arg-type]

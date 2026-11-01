@@ -20,21 +20,50 @@ class CLI:
 
     def run(self) -> None:
         """Display the menu repeatedly until exit."""
-        actions = {"1": self.add_student, "2": self.view_all, "3": self.search, "4": self.update, "5": self.delete, "6": self.import_csv, "7": self.view_statistics, "8": self.export_reports}
         while True:
             print("\nStudent Performance Analyzer")
-            print("1. Add a student\n2. View all students\n3. Search for a student\n4. Update student marks\n5. Delete a student\n6. Import students from CSV\n7. View class statistics\n8. Export reports\n0. Exit")
+            self._show_menu()
             choice = input("Choose an option: ").strip()
+
+            # A simple if/elif menu is longer than a function dictionary, but
+            # it is easier to understand while learning Python fundamentals.
             if choice == "0":
                 print("Goodbye!")
                 return
-            action = actions.get(choice)
-            if action is None:
-                print("Invalid choice. Enter a number from 0 to 8.")
+            elif choice == "1":
+                self.add_student()
+            elif choice == "2":
+                self.view_all()
+            elif choice == "3":
+                self.search()
+            elif choice == "4":
+                self.update()
+            elif choice == "5":
+                self.delete()
+            elif choice == "6":
+                self.import_csv()
+            elif choice == "7":
+                self.view_statistics()
+            elif choice == "8":
+                self.export_reports()
             else:
-                action()
+                print("Invalid choice. Enter a number from 0 to 8.")
+
+    @staticmethod
+    def _show_menu() -> None:
+        """Print all available menu options."""
+        print("1. Add a student")
+        print("2. View all students")
+        print("3. Search for a student")
+        print("4. Update student marks")
+        print("5. Delete a student")
+        print("6. Import students from CSV")
+        print("7. View class statistics")
+        print("8. Export reports")
+        print("0. Exit")
 
     def _commit(self, students: list[Student]) -> bool:
+        """Save a new list, then use it as the current student list."""
         try:
             save_students(self.data_path, students)
         except StorageError as error:
@@ -86,9 +115,15 @@ class CLI:
         if self.manager.get_by_id(student_id):
             print(f"Student ID {student_id} already exists.")
             return
-        marks = {subject: self._mark(subject) for subject in SUBJECTS}
+        marks = {}
+        for subject in SUBJECTS:
+            marks[subject] = self._mark(subject)
+
         student = Student(student_id, name, marks)
-        if self._commit(self.manager.students + [student]):
+        students_after_add = self.manager.students
+        students_after_add.append(student)
+
+        if self._commit(students_after_add):
             print(f"Student {student_id} added and saved.")
 
     def view_all(self) -> None:
@@ -111,9 +146,20 @@ class CLI:
         if student is None:
             print("Student was not found.")
             return
-        new_marks = {subject: self._mark(subject, student.marks[subject]) for subject in SUBJECTS}
+        new_marks = {}
+        for subject in SUBJECTS:
+            old_mark = student.marks[subject]
+            new_marks[subject] = self._mark(subject, old_mark)
+
         replacement = Student(student.student_id, student.name, new_marks)
-        staged = [replacement if item.student_id == student.student_id else item for item in self.manager.students]
+
+        staged = []
+        for item in self.manager.students:
+            if item.student_id == student.student_id:
+                staged.append(replacement)
+            else:
+                staged.append(item)
+
         if self._commit(staged):
             print(f"Marks for {student.student_id} updated and saved.")
 
@@ -132,22 +178,36 @@ class CLI:
         if answer != "y":
             print("Deletion cancelled.")
             return
-        staged = [item for item in self.manager.students if item.student_id != student.student_id]
+        staged = []
+        for item in self.manager.students:
+            if item.student_id != student.student_id:
+                staged.append(item)
+
         if self._commit(staged):
             print(f"Student {student.student_id} deleted and saved.")
 
     def import_csv(self) -> None:
         raw_path = input(f"CSV path [{SAMPLE_CSV}]: ").strip()
-        path = Path(raw_path).expanduser() if raw_path else SAMPLE_CSV
+        if raw_path:
+            path = Path(raw_path).expanduser()
+        else:
+            path = SAMPLE_CSV
+
+        existing_ids = set()
+        for student in self.manager.students:
+            existing_ids.add(student.student_id)
+
         try:
-            result = read_csv_import(path, {student.student_id for student in self.manager.students})
+            result = read_csv_import(path, existing_ids)
         except CSVImportError as error:
             print(f"Import failed: {error}")
             return
         for error in result.errors:
             print(error)
-        if result.students and not self._commit(self.manager.students + result.students):
-            return
+        if result.students:
+            students_after_import = self.manager.students + result.students
+            if not self._commit(students_after_import):
+                return
         print(f"Imported: {len(result.students)}, skipped: {result.skipped_count}, blank rows ignored: {result.blank_count}.")
 
     def view_statistics(self) -> None:
@@ -170,7 +230,12 @@ class CLI:
         if choice not in {"1", "2", "3"}:
             print("Invalid report choice.")
             return
-        exporters = ([export_csv] if choice == "1" else [export_txt] if choice == "2" else [export_csv, export_txt])
+        if choice == "1":
+            exporters = [export_csv]
+        elif choice == "2":
+            exporters = [export_txt]
+        else:
+            exporters = [export_csv, export_txt]
         for exporter in exporters:
             try:
                 print(f"Created: {exporter(self.manager.students, REPORTS_DIR)}")

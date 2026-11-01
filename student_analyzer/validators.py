@@ -1,8 +1,6 @@
 """Reusable validation and normalization helpers."""
 
 import math
-from collections.abc import Mapping
-from numbers import Real
 
 from .config import SUBJECTS
 
@@ -27,8 +25,10 @@ def validate_name(value: object) -> str:
 
 def validate_mark(value: object, subject: str = "Mark") -> float:
     """Convert a finite numeric mark in the inclusive range 0-100."""
+    # Python treats True and False as numbers, so check booleans first.
     if isinstance(value, bool) or value is None:
         raise ValidationError(f"{subject} must be a number from 0 to 100.")
+
     if isinstance(value, str):
         if not value.strip():
             raise ValidationError(f"{subject} must not be blank.")
@@ -36,10 +36,12 @@ def validate_mark(value: object, subject: str = "Mark") -> float:
             number = float(value.strip())
         except ValueError as error:
             raise ValidationError(f"{subject} must be numeric.") from error
-    elif isinstance(value, Real):
+    elif isinstance(value, (int, float)):
         number = float(value)
     else:
         raise ValidationError(f"{subject} must be numeric.")
+
+    # NaN and infinity are numbers, but they are not valid marks.
     if not math.isfinite(number):
         raise ValidationError(f"{subject} must be finite.")
     if not 0 <= number <= 100:
@@ -49,17 +51,24 @@ def validate_mark(value: object, subject: str = "Mark") -> float:
 
 def validate_marks(marks: object) -> dict[str, float]:
     """Validate an exact subject-to-mark mapping."""
-    if not isinstance(marks, Mapping):
+    if not isinstance(marks, dict):
         raise ValidationError("Marks must be a subject dictionary.")
-    actual = set(marks)
-    expected = set(SUBJECTS)
-    if actual != expected:
-        missing = sorted(expected - actual)
-        unexpected = sorted(actual - expected)
+
+    actual_subjects = set(marks.keys())
+    expected_subjects = set(SUBJECTS)
+
+    if actual_subjects != expected_subjects:
+        missing = sorted(expected_subjects - actual_subjects)
+        unexpected = sorted(actual_subjects - expected_subjects)
         details = []
         if missing:
             details.append("missing: " + ", ".join(missing))
         if unexpected:
             details.append("unexpected: " + ", ".join(unexpected))
         raise ValidationError("Subject keys are invalid (" + "; ".join(details) + ").")
-    return {subject: validate_mark(marks[subject], subject.title()) for subject in SUBJECTS}
+    validated_marks = {}
+    for subject in SUBJECTS:
+        mark = marks[subject]
+        validated_marks[subject] = validate_mark(mark, subject.title())
+
+    return validated_marks

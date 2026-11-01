@@ -8,10 +8,18 @@ class StudentManager:
     """Manage an in-memory list of unique students."""
 
     def __init__(self, students: list[Student] | None = None) -> None:
-        self._students = list(students or [])
-        ids = [student.student_id for student in self._students]
-        if len(ids) != len(set(ids)):
-            raise ValueError("Duplicate student IDs are not allowed.")
+        if students is None:
+            self._students = []
+        else:
+            self._students = list(students)
+
+        # A set contains only unique values, so it is useful for finding
+        # duplicate IDs while checking the starting student list.
+        seen_ids: set[str] = set()
+        for student in self._students:
+            if student.student_id in seen_ids:
+                raise ValueError("Duplicate student IDs are not allowed.")
+            seen_ids.add(student.student_id)
 
     @property
     def students(self) -> list[Student]:
@@ -27,16 +35,33 @@ class StudentManager:
     def get_by_id(self, student_id: str) -> Student | None:
         """Find one student by exact normalized ID."""
         target = normalize_student_id(student_id)
-        return next((student for student in self._students if student.student_id == target), None)
+
+        for student in self._students:
+            if student.student_id == target:
+                return student
+
+        return None
 
     def search(self, query: str) -> list[Student]:
         """Search exact ID first, otherwise partial case-insensitive name."""
         text = query.strip()
         if not text:
             return []
-        normalized = text.upper()
-        exact = [student for student in self._students if student.student_id == normalized]
-        return exact or [student for student in self._students if text.casefold() in student.name.casefold()]
+        normalized_id = text.upper()
+
+        # An ID search is exact.
+        for student in self._students:
+            if student.student_id == normalized_id:
+                return [student]
+
+        # A name search can return more than one matching student.
+        matching_students = []
+        search_text = text.casefold()
+        for student in self._students:
+            if search_text in student.name.casefold():
+                matching_students.append(student)
+
+        return matching_students
 
     def update_marks(self, student_id: str, marks: dict[str, object]) -> Student:
         """Validate all new marks before changing the student."""
